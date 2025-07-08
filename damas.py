@@ -178,9 +178,13 @@ def sugerir_movimientos(tablero, origen, jugador):
                     sugerencias.append((fy, cy))
     return sugerencias
 
+import random
+
 def jugar():
     tablero = inicializar_tablero()
     turno = 'x'
+    modo_vs_cpu = input("¿Quieres jugar contra la computadora? (s/n): ").strip().lower() == 's'
+    cpu_jugador = 'o' if modo_vs_cpu else None
     while True:
         mostrar_tablero(tablero)
         x, o, X, O = contar_fichas(tablero)
@@ -190,37 +194,60 @@ def jugar():
             print(f"¡El jugador '{ganador}' ha ganado!")
             break
         print(f"Turno del jugador '{turno}'")
-        try:
-            origen = tuple(map(int, input("Ficha a mover (fila col): ").split()))
-            if tablero[origen[0]][origen[1]].lower() == turno:
-                sugerencias = sugerir_movimientos(tablero, origen, turno)
-                if sugerencias:
-                    print("Movimientos posibles desde esa ficha:", sugerencias)
-            destino = tuple(map(int, input("Destino (fila col): ").split()))
-        except ValueError:
-            print("Entrada inválida. Intenta de nuevo.")
-            continue
-
-        valido, captura = movimiento_valido(tablero, origen, destino, turno)
-        if valido:
+        if modo_vs_cpu and turno == cpu_jugador:
+            # Turno de la computadora
+            posibles = movimientos_posibles(tablero, cpu_jugador)
+            if not posibles:
+                print("La computadora no puede mover. ¡Ganas tú!")
+                break
+            origen, destino = random.choice(posibles)
+            print(f"La computadora mueve de {origen} a {destino}")
+            valido, captura = movimiento_valido(tablero, origen, destino, cpu_jugador)
             nueva_ficha = mover_ficha(tablero, origen, destino, captura)
-            while captura and puede_capturar(tablero, destino, turno):
+            while captura and puede_capturar(tablero, destino, cpu_jugador):
                 mostrar_tablero(tablero)
-                print(f"¡Captura extra disponible para '{turno}'!")
+                print(f"¡Captura extra para la computadora!")
                 origen = destino
-                try:
-                    destino = tuple(map(int, input("Siguiente salto (fila col): ").split()))
-                except ValueError:
-                    break
-                valido, captura = movimiento_valido(tablero, origen, destino, turno)
-                if valido and captura:
+                posibles_saltos = [((origen), (fx, fy)) for (o, (fx, fy)) in movimientos_posibles(tablero, cpu_jugador) if o == origen]
+                if posibles_saltos:
+                    _, destino = random.choice(posibles_saltos)
+                    print(f"La computadora salta a {destino}")
+                    valido, captura = movimiento_valido(tablero, origen, destino, cpu_jugador)
                     nueva_ficha = mover_ficha(tablero, origen, destino, captura)
                 else:
                     break
             turno = 'o' if turno == 'x' else 'x'
         else:
-            reproducir_sonido(sonido_movimiento_no_valido)
-            print("Movimiento no válido. Intenta de nuevo.")
+            try:
+                origen = tuple(map(int, input("Ficha a mover (fila col): ").split()))
+                if tablero[origen[0]][origen[1]].lower() == turno:
+                    sugerencias = sugerir_movimientos(tablero, origen, turno)
+                    if sugerencias:
+                        print("Movimientos posibles desde esa ficha:", sugerencias)
+                destino = tuple(map(int, input("Destino (fila col): ").split()))
+            except ValueError:
+                print("Entrada inválida. Intenta de nuevo.")
+                continue
+            valido, captura = movimiento_valido(tablero, origen, destino, turno)
+            if valido:
+                nueva_ficha = mover_ficha(tablero, origen, destino, captura)
+                while captura and puede_capturar(tablero, destino, turno):
+                    mostrar_tablero(tablero)
+                    print(f"¡Captura extra disponible para '{turno}'!")
+                    origen = destino
+                    try:
+                        destino = tuple(map(int, input("Siguiente salto (fila col): ").split()))
+                    except ValueError:
+                        break
+                    valido, captura = movimiento_valido(tablero, origen, destino, turno)
+                    if valido and captura:
+                        nueva_ficha = mover_ficha(tablero, origen, destino, captura)
+                    else:
+                        break
+                turno = 'o' if turno == 'x' else 'x'
+            else:
+                reproducir_sonido(sonido_movimiento_no_valido)
+                print("Movimiento no válido. Intenta de nuevo.")
 
 if __name__ == "__main__":
     jugar()
