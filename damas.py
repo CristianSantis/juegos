@@ -1,4 +1,33 @@
 # Juego de damas mejorado con captura, saltos múltiples y coronación
+from colorama import Fore, Style, init
+init(autoreset=True)
+
+import pygame
+# Inicializar pygame
+pygame.mixer.init()
+
+# Cargar sonidos con manejo de errores
+try:
+    sonido_movimiento = pygame.mixer.Sound('sounds/483600__raclure__cursor.wav')
+    sonido_captura = pygame.mixer.Sound('sounds/445884__lauracarolina09__48-blood.wav')
+    sonido_movimiento_no_valido = pygame.mixer.Sound('sounds/363920__samsterbirdies__8-bit-error.wav')
+    sonido_coronacion = pygame.mixer.Sound('sounds/721208__ahhh.wav')
+    sonidos_habilitados = True
+except pygame.error:
+    print("No se pudieron cargar los sonidos. El juego continuará sin audio.")
+    sonidos_habilitados = False
+
+# Función helper para reproducir sonidos
+def reproducir_sonido(sonido):
+    if sonidos_habilitados:
+        sonido.play()
+
+def color_ficha(ficha):
+    if ficha.lower() == 'x':
+        return Fore.RED + ficha + Style.RESET_ALL
+    elif ficha.lower() == 'o':
+        return Fore.BLUE + ficha + Style.RESET_ALL
+    return ficha
 
 def inicializar_tablero():
     tablero = [[' ' for _ in range(8)] for _ in range(8)]
@@ -13,9 +42,24 @@ def inicializar_tablero():
     return tablero
 
 def mostrar_tablero(tablero):
-    print("  " + " ".join(str(i) for i in range(8)))
+    print("    " + "   ".join(str(i) for i in range(8)))
+    print("  ┌" + ("───┬" * 7) + "───┐")
     for i, fila in enumerate(tablero):
-        print(i, " ".join(fila))
+        fila_str = f"{i} │"
+        for j, celda in enumerate(fila):
+            if (i + j) % 2 == 1:
+                # Casilla negra
+                ficha_coloreada = color_ficha(celda)
+                if celda == ' ':
+                    ficha_coloreada = Fore.WHITE + '·' + Style.RESET_ALL
+                fila_str += f" {ficha_coloreada} │"
+            else:
+                # Casilla blanca
+                fila_str += "   │"
+        print(fila_str)
+        if i < 7:
+            print("  ├" + ("───┼" * 7) + "───┤")
+    print("  └" + ("───┴" * 7) + "───┘")
 
 def es_dama(ficha):
     return ficha in ('X', 'O')
@@ -65,11 +109,16 @@ def mover_ficha(tablero, origen, destino, captura):
     if captura:
         mx, my = captura
         tablero[mx][my] = ' '
+        reproducir_sonido(sonido_captura)
+    else: 
+        reproducir_sonido(sonido_movimiento)
     # Coronación
     if ficha == 'x' and fy == 7:
         tablero[fy][cy] = 'X'
+        reproducir_sonido(sonido_coronacion)
     elif ficha == 'o' and fy == 0:
         tablero[fy][cy] = 'O'
+        reproducir_sonido(sonido_coronacion)
     return tablero[fy][cy]
 
 def puede_capturar(tablero, origen, jugador):
@@ -84,14 +133,69 @@ def puede_capturar(tablero, origen, jugador):
                 return True
     return False
 
+def contar_fichas(tablero):
+    x = o = X = O = 0
+    for fila in tablero:
+        for celda in fila:
+            if celda == 'x': x += 1
+            elif celda == 'o': o += 1
+            elif celda == 'X': X += 1
+            elif celda == 'O': O += 1
+    return x, o, X, O
+
+def hay_ganador(tablero):
+    x, o, X, O = contar_fichas(tablero)
+    if x + X == 0:
+        return 'o'
+    if o + O == 0:
+        return 'x'
+    return None
+
+def movimientos_posibles(tablero, jugador):
+    moves = []
+    for fx in range(8):
+        for cx in range(8):
+            ficha = tablero[fx][cx]
+            if ficha.lower() == jugador:
+                for dx in [-1, 1, -2, 2]:
+                    for dy in [-1, 1, -2, 2]:
+                        fy, cy = fx + dx, cx + dy
+                        if 0 <= fy < 8 and 0 <= cy < 8:
+                            valido, captura = movimiento_valido(tablero, (fx, cx), (fy, cy), jugador)
+                            if valido:
+                                moves.append(((fx, cx), (fy, cy)))
+    return moves
+
+def sugerir_movimientos(tablero, origen, jugador):
+    sugerencias = []
+    fx, cx = origen
+    for dx in [-1, 1, -2, 2]:
+        for dy in [-1, 1, -2, 2]:
+            fy, cy = fx + dx, cx + dy
+            if 0 <= fy < 8 and 0 <= cy < 8:
+                valido, captura = movimiento_valido(tablero, (fx, cx), (fy, cy), jugador)
+                if valido:
+                    sugerencias.append((fy, cy))
+    return sugerencias
+
 def jugar():
     tablero = inicializar_tablero()
     turno = 'x'
     while True:
         mostrar_tablero(tablero)
+        x, o, X, O = contar_fichas(tablero)
+        print(f"Fichas x: {x} | X: {X}   o: {o} | O: {O}")
+        ganador = hay_ganador(tablero)
+        if ganador:
+            print(f"¡El jugador '{ganador}' ha ganado!")
+            break
         print(f"Turno del jugador '{turno}'")
         try:
             origen = tuple(map(int, input("Ficha a mover (fila col): ").split()))
+            if tablero[origen[0]][origen[1]].lower() == turno:
+                sugerencias = sugerir_movimientos(tablero, origen, turno)
+                if sugerencias:
+                    print("Movimientos posibles desde esa ficha:", sugerencias)
             destino = tuple(map(int, input("Destino (fila col): ").split()))
         except ValueError:
             print("Entrada inválida. Intenta de nuevo.")
@@ -115,6 +219,7 @@ def jugar():
                     break
             turno = 'o' if turno == 'x' else 'x'
         else:
+            reproducir_sonido(sonido_movimiento_no_valido)
             print("Movimiento no válido. Intenta de nuevo.")
 
 if __name__ == "__main__":
